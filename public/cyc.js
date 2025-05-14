@@ -9,7 +9,6 @@ async function getProducts() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
     },
     body: JSON.stringify({}),
   });
@@ -76,6 +75,54 @@ async function setProducts() {
     addToCart.href = "#";
     addToCart.className = "add-cart";
     addToCart.textContent = "+ Add To Cart";
+    addToCart.id = `product_${producto.id}`;
+    addToCart.onclick = async function (event) {
+      event.preventDefault();
+      const quantity = 1; // Default quantity set to 1
+      try {
+      const response = await fetch(
+        "http://localhost:5000/api/carrito/agregar",
+        {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id_product: producto.id,
+          quantity: parseFloat(quantity),
+        }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(data);
+        swal({
+        title: "Producto agregado al carrito",
+        text: "El producto ha sido agregado a tu carrito de compras.",
+        icon: "success",
+        button: "Aceptar",
+        });
+        await getTotalCarrito();
+      } else {
+        console.error("Error al agregar el producto al carrito");
+        swal({
+        title: "Error",
+        text: "No se pudo agregar el producto al carrito.",
+        icon: "error",
+        button: "Aceptar",
+        });
+      }
+      } catch (error) {
+      console.error("Error:", error);
+      swal({
+        title: "Error",
+        text: "Ocurrió un error al intentar agregar el producto al carrito.",
+        icon: "error",
+        button: "Aceptar",
+      });
+      }
+    };
 
     const productPrice = document.createElement("h5");
     productPrice.textContent = `$${producto.precios[0]}`;
@@ -94,7 +141,7 @@ async function setProducts() {
       productColorSelect.appendChild(colorLabel);
     });
 
-    productItem.onclick = () => {
+    productPic.onclick = () => {
       window.location.href = `shop-details.html?i=${btoa(
         JSON.stringify({ id: producto.id })
       )}`;
@@ -159,10 +206,11 @@ async function deleteItemFromCart(id) {
   const response = await fetch(
     `http://localhost:5000/api/carrito/eliminar/${id}`,
     {
-      method: "DELETE",
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ id_product: id }),
     }
   );
   if (!response.ok) {
@@ -176,11 +224,19 @@ async function deleteItemFromCart(id) {
 async function setCartItems() {
   const cart_items = document.getElementById("cart_items") || null;
   if (cart_items) {
+    cart_items.innerHTML = ""; // Limpiar antes de agregar
     const itemsCart = await getCartItems();
     console.log(itemsCart);
 
     if (itemsCart.data.length === 0) {
-      cart_items.innerHTML = `<tr><td colspan="4"><h4>No hay productos en el carrito</h4></td></tr>`;
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 4;
+      const h4 = document.createElement("h4");
+      h4.textContent = "No hay productos en el carrito";
+      td.appendChild(h4);
+      tr.appendChild(td);
+      cart_items.appendChild(tr);
       return;
     }
 
@@ -188,43 +244,88 @@ async function setCartItems() {
     let total = 0;
 
     itemsCart.data.forEach((item) => {
-      itemHtml = `
-   <tr>
-     <td class="product__cart__item">
-       <div class="product__cart__item__pic">
-         <img src="${item.imagenes[0]}" width="100" alt="">
-       </div>
-       <div class="product__cart__item__text">
-         <h6>${item.nombre}</h6>
-         <h5>$${parseFloat(item.precios[0])}</h5>
-       </div>
-     </td>
-     <td class="quantity__item">
-       <div class="quantity">
-         <div class="pro-qty-2">
-           <input type="number" value="${parseFloat(item.quantity)}">
-         </div>
-       </div>
-     </td>
-     <td class="cart__price">$${
-       parseFloat(item.precios[0]) * parseFloat(item.quantity)
-     }</td>
-     <td class="cart__close" style="cursor: pointer;" id="cart_item_${
-       item.id_product
-     }"><i class="fa fa-close"></i></td>
-   </tr>`;
-      cart_items.innerHTML += itemHtml;
-      subtotal += parseFloat(item.precios[0]) * parseFloat(item.quantity);
-      total += parseFloat(item.precios[0]) * parseFloat(item.quantity);
-      const deleteButton = document.getElementById(
-        `cart_item_${item.id_product}`
-      );
-      deleteButton.onclick = async () => {
+      // <tr>
+      const tr = document.createElement("tr");
+
+      // <td class="product__cart__item">
+      const tdProduct = document.createElement("td");
+      tdProduct.className = "product__cart__item";
+
+      // <div class="product__cart__item__pic">
+      const divPic = document.createElement("div");
+      divPic.className = "product__cart__item__pic";
+      const img = document.createElement("img");
+      img.src = item.imagenes[0];
+      img.width = 100;
+      img.alt = "";
+      divPic.appendChild(img);
+
+      // <div class="product__cart__item__text">
+      const divText = document.createElement("div");
+      divText.className = "product__cart__item__text";
+      const h6 = document.createElement("h6");
+      h6.textContent = item.nombre;
+      const h5 = document.createElement("h5");
+      h5.textContent = `$${parseFloat(item.precios[0])}`;
+      divText.appendChild(h6);
+      divText.appendChild(h5);
+
+      tdProduct.appendChild(divPic);
+      tdProduct.appendChild(divText);
+
+      // <td class="quantity__item">
+      const tdQuantity = document.createElement("td");
+      tdQuantity.className = "quantity__item";
+      const divQuantity = document.createElement("div");
+      divQuantity.className = "quantity";
+      const divProQty = document.createElement("div");
+      divProQty.className = "pro-qty-2";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.value = parseFloat(item.quantity);
+      divProQty.appendChild(input);
+      divQuantity.appendChild(divProQty);
+      tdQuantity.appendChild(divQuantity);
+
+      // <td class="cart__price">
+      const tdPrice = document.createElement("td");
+      tdPrice.className = "cart__price";
+      tdPrice.textContent = `$${parseFloat(item.precios[0]) * parseFloat(item.quantity)}`;
+
+      // <td class="cart__close">
+      const tdClose = document.createElement("td");
+      tdClose.className = "cart__close";
+      const button = document.createElement("button");
+      button.id = `cart_item_${item.id_product}`;
+      button.style.cursor = "pointer";
+      button.style.background = "none";
+      button.style.border = "none";
+      button.style.padding = "0";
+      const icon = document.createElement("i");
+      icon.className = "fa fa-close";
+      button.appendChild(icon);
+      tdClose.appendChild(button);
+
+      // Agregar eventos
+      button.addEventListener("click", async () => {
+        console.log("Delete item", item.id_product);
         await deleteItemFromCart(item.id_product);
         await setCartItems();
         await getTotalCarrito();
-      };
+      });
+
+      // Agregar todos los td al tr
+      tr.appendChild(tdProduct);
+      tr.appendChild(tdQuantity);
+      tr.appendChild(tdPrice);
+      tr.appendChild(tdClose);
+
+      cart_items.appendChild(tr);
+
+      subtotal += parseFloat(item.precios[0]) * parseFloat(item.quantity);
+      total += parseFloat(item.precios[0]) * parseFloat(item.quantity);
     });
+
     document.getElementById("subtotal").innerHTML = `$${subtotal}`;
     document.getElementById("total").innerHTML = `$${total}`;
   }
@@ -294,13 +395,20 @@ async function createMPContainer(preferenceId) {
 
 // };
 
+async function mpButton() {
+  const checkout = await checkOut();
+  console.log(checkout);
+  await createMPContainer(checkout.data.preferenceId);
+}
+
 window.onload = async () => {
   try {
     await setProducts();
     await setCartItems();
     await getTotalCarrito();
-    const getcheckOut = await checkOut();
-    createMPContainer(getcheckOut.data.preferenceId); 
+    if (document.getElementById('wallet_container') && productos.length > 0) {
+      mpButton();
+    }
   } catch (error) {
     console.error("Error loading products:", error);
     productosContainer.innerHTML = "<p>Error loading products</p>";
